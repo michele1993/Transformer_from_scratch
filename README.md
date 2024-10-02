@@ -1,1 +1,1 @@
-# Implementation of an Encdoer-Decoder Transformer from scratch
+# Implementation of a Transformer from scratch
