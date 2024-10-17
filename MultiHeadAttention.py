@@ -79,6 +79,8 @@ class MultiHeadAttention(nn.Module):
 
         # Apply mask if necessary
         if mask is not None:
+            # set attention score to a super small value for masked elements
+            # in practice telling the transformer not to 'pay attention' to them
             attention_score = attention_score.masked_fill(mask == 0, float("-1e20"))
 
         # Normalised dot product:
