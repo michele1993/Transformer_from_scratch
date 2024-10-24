@@ -31,14 +31,14 @@ setup_logger()
 
 
 # Initialise overall stransformer architecture
-transformer = Transformer(input_vocab_s=vocab_size, target_vocab_s=vocab_size, max_seq_len=max_seq_len, embedding_s=embedding_s, n_heads=n_heads, ln_rate=ln_rate).to(dev)
+transformer = Transformer(input_vocab_s=vocab_size, target_vocab_s=vocab_size, max_seq_len=max_seq_len, embedding_s=embedding_s, n_heads=n_heads, device=dev, ln_rate=ln_rate).to(dev)
 
 # training:
 for ep in range(tot_ep):
     # exclude last element of target seq since don't wanna predict next token for last element
     transformer_output = transformer(input_seq=x, target_seq=target_x[:,:-1])
     # shift target by one since want to predict next token
-    loss = transformer.update(transformer_output.contiguous().view(-1, vocab_size), target_x[:,1:].contiguous().view(-1))
+    loss = transformer.update(transformer_output.contiguous().view(-1, vocab_size), target_x[:,1:].contiguous().view(-1)) # target: [batchs_s*target_seq_len] since chosen loss takes (1d) class label
     logging.info(f" *** Episode: {ep} | Loss: {loss} *** ")
 
 # Try inference by selecting sequence from the first batch 

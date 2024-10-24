@@ -39,10 +39,11 @@ class EncoderBlock(nn.Module):
         # Initialise final normalisation layer
         self.norm_l2 = nn.LayerNorm(embedding_s)
 
-    def forward(self, x):
+    def forward(self, x, mask=None):
         """ 
         Args:
             x: embedding vector [batch_s, seq, embedding_s]
+            mask: input mask to mask padding tokens input sequence (don't want to pay attention to padding tokens)
         Return:
             The encoded input sequence
         """
@@ -54,7 +55,7 @@ class EncoderBlock(nn.Module):
         #embed_vector = self.pos_embedding(embed_vector)
 
         # Apply multi-head attention
-        attention = self.multiHead_attention(Q=x, K=x, V=x)
+        attention = self.multiHead_attention(Q=x, K=x, V=x, mask=mask)
 
         # Apply norm layer with skip connection
         x = self.norm_l1(attention + x)

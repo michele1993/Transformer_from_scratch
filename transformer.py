@@ -8,7 +8,7 @@ from decoder import DecoderBlock
 class Transformer(nn.Module):
     """ Transformer class to tie everything together"""
 
-    def __init__(self, input_vocab_s, target_vocab_s, max_seq_len, embedding_s, n_heads, ln_rate=1e-3, n_blocks=2):
+    def __init__(self, input_vocab_s, target_vocab_s, max_seq_len, embedding_s, n_heads, device, ln_rate=1e-3, n_blocks=2):
         """ 
             Args:
                 input_vocab_s: vocabolary size of input sequence
@@ -19,6 +19,8 @@ class Transformer(nn.Module):
         """
 
         super().__init__()
+
+        self.dev = device
 
         # Initialise embedding layers for encoder and decoder + positional embedding
         self.encoder_embedding = Embedding(vocab_size=input_vocab_s, embedding_s=embedding_s)
@@ -52,39 +54,38 @@ class Transformer(nn.Module):
         seq_s = target_seq.shape[1]
 
         # Note: the attention score has size [batch_s, seq_s, seq_s]
-        return torch.tril(torch.ones((1, seq_s, seq_s)))
+        return torch.tril(torch.ones((1, seq_s, seq_s))).to(self.dev)
 
     def forward(self, input_seq, target_seq):
         """ 
         Define forward pass for the entire transformer
         Args:
-            input_seq: raw input sequence (e.g., word)
-            target_seq: raw output sequence (e.g., word)
+            input_seq: raw input sequence (e.g., word), [batch_s, seq_len]
+            target_seq: raw output sequence (e.g., word), [batch_s, target_seq_len]
         """
 
-
         # input seq embedding
-        input_emb = self.encoder_embedding(input_seq)
-        input_emb = self.pos_embedding(input_emb)
+        input_emb = self.encoder_embedding(input_seq) #[batch_s, seq_len, embedding_s]
+        input_emb = self.pos_embedding(input_emb) #[batch_s, seq_len, embedding_s]
 
         # Pass forward through each ecoder block with a loop
         encoder_output = input_emb
         for enc_block in self.encoder:
-            encoder_output = enc_block(encoder_output)
+            encoder_output = enc_block(encoder_output) # NOTE: need to implement input seq mask for masking padding tokens!!!
         
         # Generate mask for the target sequence
         target_mask = self.make_target_mask(target_seq)
 
         # output seq embedding
-        target_emb = self.decoder_embedding(target_seq)
-        target_emb = self.pos_embedding(target_emb)
+        target_emb = self.decoder_embedding(target_seq) #[batch_s, target_seq_len, embedding_s]
+        target_emb = self.pos_embedding(target_emb) #[batch_s, target_seq_len, embedding_s]
 
         # Pass forward through each decoder block with a loop
         for dec_block in self.decoder:
-            target_emb = dec_block(x=target_emb, encoder_output=encoder_output, mask=target_mask)
+            target_emb = dec_block(x=target_emb, encoder_output=encoder_output, mask=target_mask) #[batch_s, target_seq_len, embedding_s]
         
-        # Apply final linear layer
-        return self.l1(target_emb)
+        # Apply final linear layer (which can then be 'softmaxed' to get token probabilities - e.g., during inference)
+        return self.l1(target_emb) # [batch_s, target_seq_len, vocab_s]
 
     def inference(self, input_seq, start_token, end_token, max_decoder_steps=100):
         """ 
@@ -140,7 +141,7 @@ class Transformer(nn.Module):
             target_seq: raw output sequence (e.g., word)
         """
         self.optimizer.zero_grad()
-        # note nn.CrosEntropyLoss takes class number as targets (not one-hot)
+        # note nn.CrosEntropyLoss takes class number as targets (not one-hot) and logits as input
         loss = self.criterion(prediction, target_seq)
         loss.backward()
         self.optimizer.step()
