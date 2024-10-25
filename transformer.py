@@ -110,12 +110,16 @@ class Transformer(nn.Module):
         # Pass start token for decoder first step and then loop around
         # decoder predictions in an auto-regressive way to predict next token
         # until end_toke reached or max step size
-        predictions = []
-        prediction = torch.tensor([start_token])
-        predictions.append(prediction.clone().item())
+        past_predictions = []
+        prediction = torch.tensor([start_token], device=self.dev)
+        past_predictions.append(prediction)
         t = 0
-        while prediction.item() != end_token and t <= max_decoder_steps:
-            emb_prediction = self.decoder_embedding(prediction.unsqueeze(0))
+        # KEY: the model prediction at each step MUST be appended to all previous
+        # predictions, which're then all passed as input to make the next prediction, 
+        # Transformers have no implicit memory, can't only pass previous prediction like RNNs
+        # otherwise it makes the next prediction only based on the previous token! 
+        for t in range(max_decoder_steps):
+            emb_prediction = self.decoder_embedding(torch.tensor(past_predictions, device=self.dev).unsqueeze(0))
             emb_prediction = self.pos_embedding(emb_prediction)
             # Pass forward through each decoder block with a loop
             decoder_output = emb_prediction
@@ -127,11 +131,17 @@ class Transformer(nn.Module):
 
             #NOTE: do not really need to compute softmax since we are taking the max value not sampling
             prediction = nn.functional.softmax(logit_prediction.squeeze(), dim=-1)
-            prediction = torch.argmax(prediction, keepdim=True) # Select most likely element 
-            predictions.append(prediction.clone().item())
-            t+=1
+            prediction = torch.argmax(prediction, keepdim=True, dim=-1) # Select most likely element 
+            # Append last prediction to all previous ones to make next prediction
+            # NOTE: this step is slightly confusing, since at each step we get a new prediction for all past tokens
+            # this is because at each step we are passing all past tokens to make a new prediction, resulting in the Transformer 
+            # giving us a prediction for all of them. However, we only want to append the latest prediction - i.e., the one for the current token
+            past_predictions.append(prediction[-1]) # only take prediction for last token
+
+            if prediction[-1].item() == end_token:
+                break
         
-        return predictions
+        return [t.cpu().item() for t in past_predictions]
 
     def update(self, prediction, target_seq):
         """ 

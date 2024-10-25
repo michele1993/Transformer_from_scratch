@@ -6,7 +6,7 @@ import logging
 
 
 # Initialise useful variables
-tot_ep = 100 # n. of training step
+tot_ep = 50 # n. of training step
 vocab_size = 50 # total n. of token
 max_seq_len = 20 # max sequence length (for positional encoding)
 embedding_s= 512 # size of the embedding space
@@ -17,11 +17,11 @@ ln_rate = 5e-4 # learning rate
 # Select correct device
 if torch.cuda.is_available():
     dev='cuda'
-elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available(): ## for MAC GPU usage
-    dev='mps'
+# Avoid 'mps' found indexing bug!
+#elif hasattr(torch.backends, 'mps') and torch.backends.mps.is_available(): ## for MAC GPU usage
+#    dev='mps'
 else:
     dev='cpu'
-
 
 # Generate some artificial data
 x, target_x, start_token, end_token = generate_randomData_batch(max_seq_len=max_seq_len, dev=dev, vocab_size=vocab_size)
@@ -48,5 +48,7 @@ x = x[0:1,:]
 target_x = target_x[0:1,:]
 predictions = transformer.inference(input_seq=x, start_token=start_token, end_token=end_token, max_decoder_steps=max_seq_len)
 
+## Check predicted and target sequences:
+target = [t.cpu().item() for t in target_x.squeeze()]
 logging.info(f" *** Predicted sequence: {predictions}")
-logging.info(f" *** Target sequence: {target_x}")
+logging.info(f" *** Target sequence: {target}")
